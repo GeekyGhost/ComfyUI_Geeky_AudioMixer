@@ -1,0 +1,19 @@
+# ComfyUI Geeky AudioMixer Node Requirements
+
+# Core audio processing
+soundfile>=0.12.1
+numpy>=1.21.0
+
+# PyTorch audio for high-quality resampling and audio processing
+torchaudio>=0.13.0
+
+# Optional but recommended for additional audio processing
+scipy>=1.9.0
+
+# JSON handling (usually included with Python)
+# json - built-in module
+
+# File operations (built-in modules)
+# os, tempfile, time - built-in modules
+
+# Note: torch is already available in ComfyUI environment
