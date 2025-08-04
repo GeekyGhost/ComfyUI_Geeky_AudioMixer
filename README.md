@@ -3,6 +3,10 @@
 <img width="1088" height="538" alt="Screenshot 2025-08-03 200408" src="https://github.com/user-attachments/assets/ddaa88db-fb30-4335-b99c-a10d8350f332" />
 
 
+https://github.com/user-attachments/assets/71881db4-22b9-4545-8647-4a51518bbefe
+
+
+
 A professional-grade audio mixing node for ComfyUI that allows you to combine up to 4 audio tracks with full control over timing, volume, and effects. Perfect for creating polished audio tracks for lip-sync videos, tutorials, podcasts, or any multimedia content.
 
 ## ✨ Features
