@@ -9,10 +9,10 @@ from typing import Optional, Tuple, List
 
 class GeekyAudioMixer:
     """
-    Geeky AudioMixer Node for ComfyUI
+    Geeky AudioMixer Node for ComfyUI - FIXED VERSION
     
     Combines up to 4 audio tracks with full control over:
-    - Volume levels for each track
+    - Volume levels for each track (now properly preserved!)
     - Fade in/out effects
     - Start time offsets
     - Professional audio processing
@@ -119,10 +119,14 @@ class GeekyAudioMixer:
                 
                 # === MASTER CONTROLS ===
                 "master_volume": ("FLOAT", {
-                    "default": 2.0, "min": 0.0, "max": 5.0, "step": 0.01,
+                    "default": 1.0, "min": 0.0, "max": 5.0, "step": 0.01,
                     "display": "slider"
                 }),
-                "normalize_output": ("BOOLEAN", {"default": True}),
+                
+                # === NEW NORMALIZATION OPTIONS ===
+                "normalization_mode": (["off", "prevent_clipping", "full_normalize", "smart_normalize"], 
+                                     {"default": "prevent_clipping"}),
+                
                 "compression_ratio": ("FLOAT", {
                     "default": 1.0, "min": 1.0, "max": 10.0, "step": 0.1,
                     "display": "slider"
@@ -151,15 +155,17 @@ class GeekyAudioMixer:
                   audio_2_volume=1.2, audio_2_start_time=0.0, audio_2_fade_in=1.0, audio_2_fade_out=1.0,
                   audio_3_volume=1.0, audio_3_start_time=0.0, audio_3_fade_in=0.0, audio_3_fade_out=0.0,
                   audio_4_volume=1.0, audio_4_start_time=0.0, audio_4_fade_in=0.0, audio_4_fade_out=0.0,
-                  master_volume=2.0, normalize_output=True, compression_ratio=1.0, limiter_threshold=-1.0,
-                  pre_gain_boost=1.0):
+                  master_volume=1.0, normalization_mode="prevent_clipping", compression_ratio=1.0, 
+                  limiter_threshold=-1.0, pre_gain_boost=1.0):
         """
-        Main audio mixing function
+        Main audio mixing function - FIXED to preserve volume relationships!
         """
         try:
             # Prepare track configurations
             tracks = []
             mix_info = {"tracks_loaded": 0, "processing_steps": [], "warnings": []}
+            
+            print(f"\n🎛️ STARTING AUDIO MIX with normalization_mode: {normalization_mode}")
             
             # Process Audio 1 (mandatory)
             track_1 = self.process_audio_track(
@@ -215,16 +221,16 @@ class GeekyAudioMixer:
                     json.dumps({"rms_left_db": -60, "rms_right_db": -60, "peak_left_db": -60, "peak_right_db": -60})
                 )
             
-            # Mix all tracks together
+            # Mix all tracks together (preserving relative volumes!)
             mixed_audio = self.mix_tracks(tracks, output_duration, sample_rate)
-            mix_info["processing_steps"].append(f"Mixed {len(tracks)} tracks onto {output_duration}s timeline")
+            mix_info["processing_steps"].append(f"Mixed {len(tracks)} tracks with preserved volume relationships")
             
-            # Add detailed mixing info
-            for track in tracks:
-                track_info = f"  {track['name']}: {track['duration']:.2f}s @ {track['start_time']:.1f}s"
-                if 'original_sample_rate' in track:
-                    track_info += f" (resampled from {track['original_sample_rate']}Hz)"
-                mix_info["processing_steps"].append(track_info)
+            # Show levels BEFORE master volume and normalization
+            pre_rms = torch.sqrt(torch.mean(mixed_audio ** 2))
+            pre_peak = torch.max(torch.abs(mixed_audio))
+            print(f"\n📊 LEVELS AFTER MIXING (before master processing):")
+            print(f"   RMS: {pre_rms:.6f} ({20 * torch.log10(pre_rms + 1e-10):.1f} dB)")
+            print(f"   Peak: {pre_peak:.6f} ({20 * torch.log10(pre_peak + 1e-10):.1f} dB)")
             
             # Apply pre-gain boost first (before other processing)
             if pre_gain_boost != 1.0:
@@ -237,11 +243,17 @@ class GeekyAudioMixer:
             mix_info["processing_steps"].append(f"Applied master volume: {master_volume}")
             print(f"🔊 Master volume applied: {master_volume}x")
             
-            # Apply post-processing
-            if normalize_output:
-                mixed_audio = self.normalize_audio(mixed_audio)
-                mix_info["processing_steps"].append("Normalized output")
+            # Show levels after master volume
+            master_rms = torch.sqrt(torch.mean(mixed_audio ** 2))
+            master_peak = torch.max(torch.abs(mixed_audio))
+            print(f"\n📊 LEVELS AFTER MASTER VOLUME:")
+            print(f"   RMS: {master_rms:.6f} ({20 * torch.log10(master_rms + 1e-10):.1f} dB)")
+            print(f"   Peak: {master_peak:.6f} ({20 * torch.log10(master_peak + 1e-10):.1f} dB)")
             
+            # NEW: Apply intelligent normalization based on mode
+            mixed_audio = self.apply_smart_normalization(mixed_audio, normalization_mode, mix_info)
+            
+            # Apply post-processing
             if compression_ratio > 1.0:
                 mixed_audio = self.apply_compression(mixed_audio, compression_ratio)
                 mix_info["processing_steps"].append(f"Applied compression (ratio: {compression_ratio})")
@@ -259,7 +271,7 @@ class GeekyAudioMixer:
                 "rms_db": float(20 * torch.log10(final_rms + 1e-10)),
                 "peak_db": float(20 * torch.log10(final_peak + 1e-10))
             }
-            print(f"🎵 FINAL LEVELS:")
+            print(f"\n🎵 FINAL LEVELS:")
             print(f"   RMS: {final_rms:.6f} ({20 * torch.log10(final_rms + 1e-10):.1f} dB)")
             print(f"   Peak: {final_peak:.6f} ({20 * torch.log10(final_peak + 1e-10):.1f} dB)")
             
@@ -276,7 +288,8 @@ class GeekyAudioMixer:
                 "duration": actual_duration,
                 "channels": mixed_audio.shape[1],
                 "master_volume": master_volume,
-                "pre_gain_boost": pre_gain_boost
+                "pre_gain_boost": pre_gain_boost,
+                "normalization_mode": normalization_mode
             })
             
             # Safety clipping check to prevent harsh clipping
@@ -302,14 +315,6 @@ class GeekyAudioMixer:
         except Exception as e:
             error_msg = f"Audio mixing error: {str(e)}"
             print(error_msg)
-            print(f"Audio inputs received:")
-            print(f"  audio_1: {type(audio_1)}")
-            if audio_2 is not None:
-                print(f"  audio_2: {type(audio_2)}")
-            if audio_3 is not None:
-                print(f"  audio_3: {type(audio_3)}")
-            if audio_4 is not None:
-                print(f"  audio_4: {type(audio_4)}")
             
             # Return a minimal valid audio output to prevent crashes
             fallback_audio = torch.zeros(1, 2, int(44100 * output_duration), dtype=torch.float32)
@@ -317,8 +322,70 @@ class GeekyAudioMixer:
                 {"waveform": fallback_audio, "sample_rate": 44100},
                 error_msg,
                 0.0,
-                json.dumps({"error": "Audio processing failed", "note": "Try adjusting volume levels or check audio inputs"})
+                json.dumps({"error": "Audio processing failed"})
             )
+    
+    def apply_smart_normalization(self, audio_data, mode, mix_info):
+        """
+        NEW: Intelligent normalization that preserves volume relationships
+        """
+        print(f"\n🔧 APPLYING NORMALIZATION MODE: {mode}")
+        
+        if mode == "off":
+            print("   Normalization disabled - preserving exact levels")
+            mix_info["processing_steps"].append("Normalization: OFF - exact levels preserved")
+            return audio_data
+        
+        elif mode == "prevent_clipping":
+            # Only reduce if clipping would occur, never boost
+            max_val = torch.max(torch.abs(audio_data))
+            if max_val > 0.99:
+                scale_factor = 0.95 / max_val  # Leave small headroom
+                normalized = audio_data * scale_factor
+                print(f"   Prevented clipping: scaled by {scale_factor:.3f}")
+                mix_info["processing_steps"].append(f"Clipping prevention: scaled by {scale_factor:.3f}")
+                return normalized
+            else:
+                print(f"   No clipping risk (peak: {max_val:.3f}) - no changes made")
+                mix_info["processing_steps"].append("Clipping prevention: no scaling needed")
+                return audio_data
+        
+        elif mode == "full_normalize":
+            # Traditional normalization - boost to maximum level
+            max_val = torch.max(torch.abs(audio_data))
+            if max_val > 0:
+                target_level = 0.95
+                scale_factor = target_level / max_val
+                normalized = audio_data * scale_factor
+                print(f"   Full normalization: scaled by {scale_factor:.3f}")
+                mix_info["processing_steps"].append(f"Full normalization: scaled by {scale_factor:.3f}")
+                return normalized
+            return audio_data
+        
+        elif mode == "smart_normalize":
+            # Smart mode - only normalize if the signal is very quiet
+            rms_level = torch.sqrt(torch.mean(audio_data ** 2))
+            peak_level = torch.max(torch.abs(audio_data))
+            
+            # If RMS is below -30dB, apply gentle boosting
+            if rms_level < 0.03:  # About -30dB
+                # Boost RMS to around -20dB
+                target_rms = 0.1  # About -20dB
+                scale_factor = target_rms / rms_level
+                # But don't let peaks exceed 0.9
+                max_scale = 0.9 / peak_level if peak_level > 0 else 1.0
+                final_scale = min(scale_factor, max_scale)
+                
+                normalized = audio_data * final_scale
+                print(f"   Smart normalization: boosted quiet signal by {final_scale:.3f}")
+                mix_info["processing_steps"].append(f"Smart normalization: boosted by {final_scale:.3f}")
+                return normalized
+            else:
+                print(f"   Smart normalization: signal loud enough (RMS: {rms_level:.3f}) - no changes")
+                mix_info["processing_steps"].append("Smart normalization: no boost needed")
+                return audio_data
+        
+        return audio_data
     
     def extract_audio_data(self, audio_input):
         """Extract audio data from various ComfyUI audio formats"""
@@ -378,6 +445,7 @@ class GeekyAudioMixer:
         except Exception as e:
             print(f"Error extracting audio data: {e}")
             return None
+
     def process_audio_track(self, audio_input, track_name, volume, start_time, 
                            fade_in, fade_out, target_sample_rate, output_duration):
         """Process individual audio track with all effects"""
@@ -397,7 +465,9 @@ class GeekyAudioMixer:
                 waveform = audio_dict
                 original_sample_rate = target_sample_rate
             
-            print(f"{track_name} - Original sample rate: {original_sample_rate}, Target: {target_sample_rate}")
+            print(f"\n🎧 PROCESSING {track_name}:")
+            print(f"   Original sample rate: {original_sample_rate}, Target: {target_sample_rate}")
+            print(f"   Requested volume: {volume}")
             
             # Ensure tensor is on CPU for processing
             if isinstance(waveform, torch.Tensor):
@@ -405,38 +475,43 @@ class GeekyAudioMixer:
             else:
                 audio_data = torch.tensor(waveform, dtype=torch.float32)
             
-            print(f"{track_name} - Input shape: {audio_data.shape}")
+            print(f"   Input shape: {audio_data.shape}")
             
             # Handle tensor dimensions
             # ComfyUI audio format is typically [batch, channels, samples]
             if len(audio_data.shape) == 3:
                 audio_data = audio_data[0]  # Remove batch dimension -> [channels, samples]
-                print(f"{track_name} - Removed batch dimension: {audio_data.shape}")
+                print(f"   Removed batch dimension: {audio_data.shape}")
             elif len(audio_data.shape) == 1:
                 audio_data = audio_data.unsqueeze(0)  # Add channel dimension -> [1, samples]
-                print(f"{track_name} - Added channel dimension: {audio_data.shape}")
+                print(f"   Added channel dimension: {audio_data.shape}")
             elif len(audio_data.shape) == 2:
                 # Check if it's [samples, channels] and transpose if needed
                 if audio_data.shape[0] > audio_data.shape[1]:
                     audio_data = audio_data.transpose(0, 1)  # -> [channels, samples]
-                    print(f"{track_name} - Transposed to [channels, samples]: {audio_data.shape}")
+                    print(f"   Transposed to [channels, samples]: {audio_data.shape}")
             
             # Convert to stereo if mono
             if audio_data.shape[0] == 1:
                 audio_data = audio_data.repeat(2, 1)  # Duplicate mono to stereo
-                print(f"{track_name} - Converted mono to stereo: {audio_data.shape}")
+                print(f"   Converted mono to stereo: {audio_data.shape}")
             elif audio_data.shape[0] > 2:
                 # If more than 2 channels, take first 2
                 audio_data = audio_data[:2, :]
-                print(f"{track_name} - Reduced to stereo from {audio_data.shape[0]} channels")
+                print(f"   Reduced to stereo from {audio_data.shape[0]} channels")
             
             # Calculate original duration
             original_duration = audio_data.shape[1] / original_sample_rate
-            print(f"{track_name} - Original duration: {original_duration:.2f}s at {original_sample_rate}Hz")
+            print(f"   Original duration: {original_duration:.2f}s at {original_sample_rate}Hz")
+            
+            # Check levels before processing
+            original_rms = torch.sqrt(torch.mean(audio_data ** 2))
+            original_peak = torch.max(torch.abs(audio_data))
+            print(f"   Original levels - RMS: {original_rms:.6f}, Peak: {original_peak:.6f}")
             
             # Resample if needed
             if abs(original_sample_rate - target_sample_rate) > 100:  # Allow small differences
-                print(f"{track_name} - Resampling from {original_sample_rate}Hz to {target_sample_rate}Hz")
+                print(f"   Resampling from {original_sample_rate}Hz to {target_sample_rate}Hz")
                 try:
                     # Use high-quality resampling
                     resampled = torchaudio.functional.resample(
@@ -445,31 +520,36 @@ class GeekyAudioMixer:
                         new_freq=int(target_sample_rate),
                         resampling_method="sinc_interp_hann"
                     )
-                    print(f"{track_name} - Resampled shape: {resampled.shape}")
+                    print(f"   Resampled shape: {resampled.shape}")
                     audio_data = resampled
                 except Exception as resample_error:
-                    print(f"High-quality resample failed for {track_name}: {resample_error}")
+                    print(f"   High-quality resample failed: {resample_error}")
                     # Fallback: simple linear interpolation
                     ratio = target_sample_rate / original_sample_rate
                     new_length = int(audio_data.shape[1] * ratio)
                     audio_data = torch.nn.functional.interpolate(
                         audio_data.unsqueeze(0), size=new_length, mode='linear', align_corners=False
                     ).squeeze(0)
-                    print(f"{track_name} - Fallback resample shape: {audio_data.shape}")
+                    print(f"   Fallback resample shape: {audio_data.shape}")
             else:
-                print(f"{track_name} - No resampling needed")
+                print(f"   No resampling needed")
             
             # Calculate new duration after resampling
             new_duration = audio_data.shape[1] / target_sample_rate
-            print(f"{track_name} - New duration: {new_duration:.2f}s at {target_sample_rate}Hz")
+            print(f"   New duration: {new_duration:.2f}s at {target_sample_rate}Hz")
             
             # Apply volume adjustment
-            print(f"{track_name} - Applying volume: {volume}")
+            print(f"   Applying volume: {volume}x")
             audio_data = audio_data * volume
+            
+            # Check levels after volume adjustment
+            volume_rms = torch.sqrt(torch.mean(audio_data ** 2))
+            volume_peak = torch.max(torch.abs(audio_data))
+            print(f"   Post-volume levels - RMS: {volume_rms:.6f}, Peak: {volume_peak:.6f}")
             
             # Apply fade effects
             if fade_in > 0 or fade_out > 0:
-                print(f"{track_name} - Applying fades: in={fade_in}s, out={fade_out}s")
+                print(f"   Applying fades: in={fade_in}s, out={fade_out}s")
                 audio_data = self.apply_fades(
                     audio_data, fade_in, fade_out, target_sample_rate
                 )
@@ -481,22 +561,24 @@ class GeekyAudioMixer:
                 "start_time": start_time,
                 "duration": new_duration,
                 "original_duration": original_duration,
-                "original_sample_rate": original_sample_rate
+                "original_sample_rate": original_sample_rate,
+                "applied_volume": volume,
+                "final_rms": float(torch.sqrt(torch.mean(audio_data ** 2))),
+                "final_peak": float(torch.max(torch.abs(audio_data)))
             }
             
             print(f"✅ {track_name} processed successfully:")
             print(f"   Final shape: {audio_data.shape}")
             print(f"   Duration: {new_duration:.2f}s")
-            print(f"   Volume: {volume}")
+            print(f"   Applied volume: {volume}x")
+            print(f"   Final RMS: {processed_track['final_rms']:.6f}")
+            print(f"   Final Peak: {processed_track['final_peak']:.6f}")
             print(f"   Start time: {start_time}s")
             
             return processed_track
             
         except Exception as e:
-            print(f"Error processing {track_name}: {str(e)}")
-            print(f"Audio input type: {type(audio_input)}")
-            if hasattr(audio_input, '__dict__'):
-                print(f"Audio input attributes: {list(audio_input.__dict__.keys())}")
+            print(f"❌ Error processing {track_name}: {str(e)}")
             return None
     
     def apply_fades(self, audio_data, fade_in_duration, fade_out_duration, sample_rate):
@@ -525,13 +607,13 @@ class GeekyAudioMixer:
         return audio_data
     
     def mix_tracks(self, processed_tracks, output_duration, sample_rate):
-        """Mix all processed tracks onto a timeline"""
+        """Mix all processed tracks onto a timeline - preserving volume relationships!"""
         
         # Create output timeline [1, channels, samples]
         output_samples = int(output_duration * sample_rate)
         mixed_audio = torch.zeros(1, 2, output_samples, dtype=torch.float32)
         
-        print(f"\n🎛️ MIXING TRACKS:")
+        print(f"\n🎛️ MIXING TRACKS (Volume relationships preserved!):")
         print(f"Timeline: {output_duration}s ({output_samples} samples at {sample_rate}Hz)")
         
         for track in processed_tracks:
@@ -540,6 +622,9 @@ class GeekyAudioMixer:
             track_audio = track["audio"]
             
             print(f"\n📊 Mixing {track_name}:")
+            print(f"   Applied volume: {track['applied_volume']}x")
+            print(f"   Final RMS: {track['final_rms']:.6f}")
+            print(f"   Final Peak: {track['final_peak']:.6f}")
             print(f"   Start time: {track['start_time']}s (sample {start_sample})")
             print(f"   Track shape: {track_audio.shape}")
             print(f"   Track duration: {track['duration']:.2f}s")
@@ -575,38 +660,22 @@ class GeekyAudioMixer:
                 print(f"   Audio segment shape: {audio_segment.shape}")
                 print(f"   Audio segment RMS: {torch.sqrt(torch.mean(audio_segment ** 2)):.6f}")
                 
-                # Mix the audio
+                # Mix the audio (ADDITIVE - preserves volume relationships!)
                 mixed_audio[0, :, mix_start:mix_end] += audio_segment
-                print(f"   ✅ Mixed into timeline")
+                print(f"   ✅ Mixed into timeline (volumes preserved)")
             else:
                 print(f"   ⚠️ Track outside timeline bounds - skipped")
         
         # Check final mixed audio levels
         final_rms = torch.sqrt(torch.mean(mixed_audio ** 2))
         final_peak = torch.max(torch.abs(mixed_audio))
-        print(f"\n🎵 FINAL MIX:")
+        print(f"\n🎵 RAW MIX LEVELS (before master processing):")
         print(f"   Output shape: {mixed_audio.shape}")
         print(f"   RMS level: {final_rms:.6f}")
         print(f"   Peak level: {final_peak:.6f}")
+        print(f"   Mix contains {len(processed_tracks)} tracks with preserved volume relationships")
         
         return mixed_audio
-    
-    def normalize_audio(self, audio_data):
-        """Normalize audio to prevent clipping while maintaining dynamics"""
-        
-        max_val = torch.max(torch.abs(audio_data))
-        if max_val > 0:
-            # Normalize to -0.1dB to leave minimal headroom but maximize loudness
-            target_level = 0.98  # Much louder than previous 0.89
-            normalized = audio_data * (target_level / max_val)
-            
-            print(f"🔊 NORMALIZATION:")
-            print(f"   Original peak: {max_val:.6f}")
-            print(f"   Target level: {target_level:.6f}")
-            print(f"   Gain applied: {target_level / max_val:.2f}x")
-            
-            return normalized
-        return audio_data
     
     def apply_compression(self, audio_data, ratio):
         """Apply dynamic range compression"""
@@ -676,7 +745,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "GeekyAudioMixer": "🎵 Geeky AudioMixer"
+    "GeekyAudioMixer": "🎵 Geeky AudioMixer (Fixed)"
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
