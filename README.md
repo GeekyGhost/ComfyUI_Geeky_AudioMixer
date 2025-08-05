@@ -2,12 +2,9 @@
 
 <img width="1088" height="538" alt="Screenshot 2025-08-03 200408" src="https://github.com/user-attachments/assets/ddaa88db-fb30-4335-b99c-a10d8350f332" />
 
-
 https://github.com/user-attachments/assets/71881db4-22b9-4545-8647-4a51518bbefe
 
-
-
-A professional-grade audio mixing node for ComfyUI that allows you to combine up to 4 audio tracks with full control over timing, volume, and effects. Perfect for creating polished audio tracks for lip-sync videos, tutorials, podcasts, or any multimedia content.
+A professional-grade audio mixing node for ComfyUI that allows you to combine up to 4 audio tracks with **precise volume control** and full timing flexibility. Perfect for creating polished audio tracks for lip-sync videos, tutorials, podcasts, or any multimedia content.
 
 ## ✨ Features
 
@@ -17,18 +14,23 @@ A professional-grade audio mixing node for ComfyUI that allows you to combine up
 - **Native ComfyUI Integration**: Uses ComfyUI's audio input system directly
 
 ### 🎛️ **Professional Controls**
+- **🔥 ACCURATE Volume Control**: Individual track volumes are now **precisely preserved** - no more unexpected level changes!
 - **Individual Volume Control**: 0-500% range for each track with slider + number display
 - **Precise Timing**: Start time offset control (0-60 seconds) for each track
 - **Fade Effects**: Customizable fade in/out (0-5 seconds) for smooth transitions
 - **Master Volume**: Overall output level control (0-500%)
 - **Pre-Gain Boost**: Extra amplification (0.1x-10x) for very quiet audio sources
 
-### 🔊 **Audio Processing**
+### 🔊 **Advanced Audio Processing**
+- **🆕 Smart Normalization Modes**: Choose how (or if) to normalize your audio
+  - **"prevent_clipping"** *(default)*: Only reduces levels if clipping would occur
+  - **"off"**: No normalization - preserves exact volume relationships
+  - **"full_normalize"**: Traditional normalization to maximum level
+  - **"smart_normalize"**: Only boosts very quiet signals
 - **High-Quality Resampling**: Automatic sample rate conversion with sinc interpolation
-- **Smart Normalization**: Maximizes loudness while preventing clipping (-0.1dB target)
 - **Dynamic Range Compression**: Optional compression (1.0-10.0 ratio)
 - **Soft Limiting**: Prevents harsh clipping (-1dB default threshold)
-- **Detailed Level Metering**: Real-time RMS and peak level monitoring
+- **Detailed Level Metering**: Real-time RMS and peak level monitoring with debug output
 
 ### 📊 **Output Options**
 - **Multiple Formats**: WAV, MP3, FLAC support
@@ -109,78 +111,97 @@ A professional-grade audio mixing node for ComfyUI that allows you to combine up
 - **Fade In/Out**: Quick or no fades for impact sounds
 
 #### **🎛️ MASTER CONTROLS**
-- **Master Volume**: 200% default (overall output boost)
+- **Master Volume**: **100% default** *(changed from 200% for better control)*
+- **🆕 Normalization Mode**: **"prevent_clipping" default** - Choose your normalization strategy
 - **Pre-Gain Boost**: 100% default (extra amplification if needed)
-- **Normalization**: Enabled by default (prevents clipping)
 - **Compression**: 1.0 default (no compression)
 - **Limiter Threshold**: -1dB default (soft limiting)
 
+## 🔥 Volume Control Fix
+
+### **The Problem (FIXED!)**
+Previous versions applied normalization to the **entire mixed output**, which destroyed your carefully set volume relationships. If you set Audio 1 to 150% and Audio 2 to 15% (1/10th volume), they would end up at similar levels after normalization.
+
+### **The Solution**
+✅ **Volume relationships are now preserved!** The mixer processes each track with its individual volume setting, mixes them together additively, then applies master processing that respects your intended balance.
+
+### **New Normalization Modes**
+- **"prevent_clipping"** *(recommended)*: Only reduces levels if they would clip - preserves your volume ratios
+- **"off"**: No normalization whatsoever - exact volume control
+- **"full_normalize"**: Old behavior - normalizes to maximum level
+- **"smart_normalize"**: Only boosts very quiet overall mixes
+
 ## 🎯 Real-World Examples
 
-### Example 1: Tutorial Video
+### Example 1: Tutorial Video with Precise Volume Control
 ```yaml
 # Voice narration (clear and prominent)
-audio_1_volume: 2.0        # 200% - loud and clear
+audio_1_volume: 1.5        # 150% - main voice
 audio_1_start_time: 0.0    # Start immediately
 audio_1_fade_in: 0.2       # Quick fade in
 audio_1_fade_out: 0.5      # Gentle fade out
 
-# Background music (subtle, doesn't interfere)
-audio_2_volume: 0.6        # 60% - quiet background
+# Background music (exactly 1/4 the volume of voice)
+audio_2_volume: 0.375      # 37.5% - exactly 1/4 of voice volume
 audio_2_start_time: 0.0    # Start with voice
 audio_2_fade_in: 2.0       # Slow fade in
 audio_2_fade_out: 3.0      # Slow fade out
 
-# Notification sound effect
-audio_3_volume: 1.5        # 150% - audible notification
+# Notification sound (1/2 the volume of voice)
+audio_3_volume: 0.75       # 75% - exactly 1/2 of voice volume
 audio_3_start_time: 5.2    # Play at 5.2 seconds
 audio_3_fade_in: 0.0       # Instant
 audio_3_fade_out: 0.1      # Quick fade
 
 # Master settings
-master_volume: 2.5         # 250% - loud final output
+master_volume: 2.0         # 200% overall boost
+normalization_mode: "prevent_clipping"  # Preserve ratios
 output_duration: 30.0      # 30-second video
 ```
 
-### Example 2: Podcast Intro
+### Example 2: Podcast with Perfect Voice/Music Balance
 ```yaml
-# Intro music (main focus initially)
-audio_1_volume: 2.0
+# Intro music (full volume initially)
+audio_1_volume: 2.0        # 200% - prominent intro
 audio_1_start_time: 0.0
 audio_1_fade_out: 2.0      # Fade as voice comes in
 
-# Voice narration (starts after music intro)
-audio_2_volume: 2.5        # Louder than music
+# Voice narration (louder than music)
+audio_2_volume: 2.5        # 250% - 25% louder than music
 audio_2_start_time: 3.0    # Start at 3 seconds
 audio_2_fade_in: 1.0
 
-# Sound effect (transition)
-audio_3_volume: 1.0
-audio_3_start_time: 10.0   # Transition sound
+# Transition sound (moderate level)
+audio_3_volume: 1.0        # 100% - audible but not overwhelming
+audio_3_start_time: 10.0
 
-master_volume: 3.0         # Very loud output
+# Master settings - no normalization for exact control
+master_volume: 1.8         # 180% boost
+normalization_mode: "off"  # Preserve exact relationships
 ```
 
-### Example 3: Gaming Content
+### Example 3: Gaming Content with SFX Hierarchy
 ```yaml
-# Game audio/voice
-audio_1_volume: 1.8
+# Game audio/commentary
+audio_1_volume: 1.8        # 180% - main content
 audio_1_start_time: 0.0
 
-# Background music
-audio_2_volume: 0.4        # Quiet background
+# Background music (much quieter)
+audio_2_volume: 0.36       # 36% - exactly 1/5 of main audio
 audio_2_start_time: 0.0
 
-# Achievement sound
-audio_3_volume: 2.0        # Loud achievement sound
+# Achievement sound (prominent but not overwhelming)
+audio_3_volume: 1.35       # 135% - 3/4 of main audio level
 audio_3_start_time: 15.5
 
-# Victory sound
-audio_4_volume: 2.5        # Very loud victory
+# Victory sound (loudest effect)
+audio_4_volume: 2.25       # 225% - 25% louder than main
 audio_4_start_time: 28.0
 
-pre_gain_boost: 1.5        # Extra boost for gaming audio
-master_volume: 2.0
+# Master settings
+master_volume: 1.5         # 150% overall
+normalization_mode: "smart_normalize"  # Boost if too quiet
+pre_gain_boost: 1.2        # 120% - slight extra boost
 ```
 
 ## 🔧 Output Information
@@ -196,18 +217,20 @@ Detailed information about the mixing process:
   "processing_steps": [
     "Processed Audio 1 (main track)",
     "Processed Audio 2",
-    "Mixed 3 tracks onto 10.0s timeline",
-    "Applied master volume: 2.0",
-    "Applied normalization"
+    "Mixed 3 tracks with preserved volume relationships",
+    "Applied master volume: 1.5",
+    "Normalization: prevent_clipping - no scaling needed"
   ],
   "sample_rate": 44100,
   "duration": 10.0,
   "channels": 2,
+  "master_volume": 1.5,
+  "normalization_mode": "prevent_clipping",
   "final_levels": {
     "rms": 0.234567,
-    "peak": 0.980000,
+    "peak": 0.890000,
     "rms_db": -12.6,
-    "peak_db": -0.2
+    "peak_db": -1.0
   }
 }
 ```
@@ -221,19 +244,26 @@ Real-time audio level information:
 {
   "rms_left_db": -12.3,
   "rms_right_db": -12.1,
-  "peak_left_db": -0.2,
-  "peak_right_db": -0.1,
+  "peak_left_db": -1.0,
+  "peak_right_db": -0.9,
   "stereo_balance": "centered"
 }
 ```
 
 ## 🎵 Pro Tips for Best Results
 
-### Volume Balancing
-- **Voice/Main Content**: 150-250% for clarity
-- **Background Music**: 40-80% to avoid overwhelming dialogue
-- **Sound Effects**: 100-200% depending on impact needed
-- **Master Volume**: 200-300% for loud, professional output
+### Volume Balancing (Now Actually Works!)
+- **Voice/Main Content**: 120-200% for clarity
+- **Background Music**: 30-60% of main content volume for proper background level
+- **Sound Effects**: 80-150% depending on impact needed
+- **Master Volume**: 100-200% for final output level
+- **Use ratios**: If voice is 150%, set music to 37.5% for exactly 1/4 volume
+
+### Normalization Mode Selection
+- **"prevent_clipping"**: Best for most use cases - preserves your ratios
+- **"off"**: Use when you need exact volume control for professional mixing
+- **"full_normalize"**: Use when you want maximum loudness regardless of ratios
+- **"smart_normalize"**: Good for content with very quiet overall levels
 
 ### Timing and Fades
 - **Voice**: Short fades (0.1-0.5s) for natural speech
@@ -244,30 +274,45 @@ Real-time audio level information:
 ### Audio Quality Settings
 - **Sample Rate**: 44.1kHz for most content, 48kHz for professional video
 - **Format**: WAV for editing workflows, MP3 for final delivery
-- **Normalization**: Keep enabled to prevent clipping
-- **Pre-Gain Boost**: Use 1.5-3.0x for very quiet audio sources
+- **Normalization**: Use "prevent_clipping" for best balance
+- **Pre-Gain Boost**: Use 1.2-2.0x for slightly quiet sources, 3.0+ for very quiet sources
 
 ### Common Workflow Patterns
-1. **Voice + Music**: Set voice at 200%, music at 60%, master at 250%
-2. **Podcast**: Voice at 250%, intro music at 150%, master at 300%
-3. **Gaming**: Game audio at 180%, background music at 40%, effects at 200%
-4. **Tutorial**: Voice at 200%, music at 50%, notification SFX at 150%
+1. **Voice + Music**: Voice at 150%, music at 37.5% (1/4 ratio), master at 150%
+2. **Podcast**: Voice at 200%, intro music at 120%, master at 130%
+3. **Gaming**: Game audio at 180%, background music at 36% (1/5 ratio), effects at 135%
+4. **Tutorial**: Voice at 150%, music at 30%, notification SFX at 75%
 
 ## 🐛 Troubleshooting
 
+### Volume Relationships Not Working
+**Check these settings:**
+- Use `normalization_mode: "prevent_clipping"` or `"off"` 
+- Avoid `"full_normalize"` if you need precise ratios
+- Check console output for actual applied volumes and levels
+- Verify master_volume isn't set too high causing clipping
+
 ### Audio Too Quiet
 **Solutions:**
-- Increase `master_volume` to 3.0-4.0
-- Use `pre_gain_boost` of 2.0-5.0 for very quiet sources
-- Raise individual track volumes above 200%
-- Check that normalization is enabled
+- Increase `master_volume` to 1.5-3.0
+- Use `pre_gain_boost` of 1.5-3.0 for quiet sources
+- Raise individual track volumes proportionally
+- Try `normalization_mode: "smart_normalize"` for very quiet mixes
 
 ### Audio Distorted/Clipping
 **Solutions:**
-- Reduce `master_volume` below 2.0
-- Lower individual track volumes
+- Use `normalization_mode: "prevent_clipping"` (default)
+- Reduce `master_volume` below 1.5
+- Lower individual track volumes proportionally
 - Increase `limiter_threshold` to -3dB or lower
 - Enable compression with ratio 2.0-4.0
+
+### Volume Ratios Still Wrong
+**Debug steps:**
+1. Check ComfyUI console for detailed level information
+2. Look for lines like "Applied volume: 1.5x" and "Final RMS: 0.123456"
+3. Verify normalization mode is not "full_normalize"
+4. Test with `normalization_mode: "off"` and `master_volume: 1.0` for pure testing
 
 ### Tracks Not Audible
 **Solutions:**
@@ -275,13 +320,14 @@ Real-time audio level information:
 - Verify audio file formats are supported
 - Increase track volume above 100%
 - Check start times aren't beyond output duration
+- Look at console output for "Track outside timeline bounds" warnings
 
 ### Sample Rate Issues
 **Solutions:**
 - Use 44100Hz for most content
 - Check console output for resampling warnings
 - Ensure all input audio has valid sample rates
-- Try different resampling quality settings
+- Look for "Resampling from XHz to YHz" in console
 
 ### LazyAudioMap Errors
 **Solutions:**
@@ -300,20 +346,28 @@ Real-time audio level information:
 
 ### Audio Processing Pipeline
 1. **Audio Extraction**: Handles ComfyUI's LazyAudioMap format
-2. **Format Conversion**: Ensures consistent tensor format
+2. **Format Conversion**: Ensures consistent tensor format [channels, samples]
 3. **Resampling**: High-quality sinc interpolation when needed
-4. **Volume Application**: Per-track volume adjustment
+4. **Volume Application**: Per-track volume adjustment *(preserves relationships!)*
 5. **Fade Processing**: Smooth fade in/out curves
-6. **Timeline Mixing**: Precise sample-accurate placement
-7. **Master Processing**: Volume, compression, limiting
-8. **Normalization**: Loudness maximization
-9. **Output Formatting**: ComfyUI-compatible audio format
+6. **Timeline Mixing**: Sample-accurate additive mixing *(maintains ratios!)*
+7. **Master Volume**: Applied to entire mix
+8. **Smart Normalization**: Applied based on selected mode
+9. **Compression/Limiting**: Optional final processing
+10. **Output Formatting**: ComfyUI-compatible audio format
+
+### New Volume Preservation System
+- **Individual Processing**: Each track processed with its volume setting
+- **Additive Mixing**: Tracks combined while preserving relative levels
+- **Intelligent Normalization**: Only applied when beneficial
+- **Detailed Logging**: Console shows exact levels at each processing stage
+- **Master Control**: Final volume adjustment maintains relationships
 
 ### Performance Notes
 - **Memory Efficient**: Processes tracks sequentially
 - **High Quality**: Uses torchaudio for professional audio processing
 - **Real-time Capable**: Optimized for workflow performance
-- **Debug Information**: Detailed console logging for troubleshooting
+- **Debug Information**: Detailed console logging shows exact processing steps
 
 ## 🤝 Contributing
 
@@ -326,6 +380,7 @@ We welcome contributions! Here's how you can help:
    - Audio node versions you're using
    - Error messages from console
    - Steps to reproduce
+   - Include console output showing volume levels
 
 ### Feature Requests
 1. Open an [issue](https://github.com/GeekyGhost/ComfyUI_Geeky_AudioMixer/issues) with "Feature Request" label
@@ -353,20 +408,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **ComfyUI Team**: For the amazing node-based interface
-- **ComfyUI Community**: For inspiration and feedback
+- **ComfyUI Community**: For inspiration and feedback on the volume control fix
 - **Audio Processing Libraries**: PyTorch Audio team for excellent tools
 
-## 📞 Support
+## 📋 Changelog
 
-- **Issues**: [GitHub Issues](https://github.com/GeekyGhost/ComfyUI_Geeky_AudioMixer/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/GeekyGhost/ComfyUI_Geeky_AudioMixer/discussions)
-- **Discord**: Find us in ComfyUI community servers
+### v1.1.0 - Volume Control Fix
+- **🔥 FIXED**: Volume relationships now precisely preserved during mixing
+- **🆕 NEW**: Smart normalization modes (`prevent_clipping`, `off`, `full_normalize`, `smart_normalize`)
+- **🔧 IMPROVED**: Detailed console logging showing exact levels at each processing stage
+- **⚙️ CHANGED**: Master volume default changed from 200% to 100% for better control
+- **🐛 FIXED**: Normalization no longer destroys intended volume ratios
 
-## 🔗 Related Projects
-
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - The main ComfyUI project
-- [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) - Video processing nodes
-- [ComfyUI Audio Nodes](https://github.com/melMass/comfy_mtb) - Additional audio processing tools
+### v1.0.0 - Initial Release
+- Multi-track audio mixing with up to 4 tracks
+- Individual volume, timing, and fade controls
+- Professional audio processing pipeline
+- ComfyUI native integration
 
 ---
 
