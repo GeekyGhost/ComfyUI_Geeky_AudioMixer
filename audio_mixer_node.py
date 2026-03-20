@@ -536,6 +536,18 @@ class GeekyAudioMixer:
             
             # Calculate new duration after resampling
             new_duration = audio_data.shape[1] / target_sample_rate
+            
+            # === POPRAWKA (FIX): Przycięcie ścieżki PRZED nałożeniem fade'ów ===
+            # Obliczamy maksymalny dozwolony czas trwania ścieżki na osi czasu
+            max_duration = max(0.0, output_duration - start_time)
+            
+            if new_duration > max_duration:
+                max_samples = int(max_duration * target_sample_rate)
+                audio_data = audio_data[:, :max_samples] # Ucinamy nadmiar
+                new_duration = max_duration
+                print(f"   ✂️ Trimmed track to {new_duration:.2f}s to fit timeline bounds")
+            # ====================================================================
+
             print(f"   New duration: {new_duration:.2f}s at {target_sample_rate}Hz")
             
             # Apply volume adjustment
