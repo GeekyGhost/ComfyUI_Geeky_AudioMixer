@@ -1,3 +1,16 @@
+# 🛠️ ComfyUI Geeky AudioMixer (Fixed Version)
+
+**Important Update:** This fork contains a critical fix for the **Fade Out** effect.
+
+### ⚠️ What was fixed?
+In the original version, if your audio track was longer than the set `output_duration`, the Fade Out effect would not work (it was applied to the end of the original file, which was then cut off by the mixer).
+
+**In this version:**
+- Audio tracks are automatically trimmed to fit the `output_duration` **before** applying effects.
+- **Fade Out now works perfectly** regardless of the source audio length.
+- Better handling of timeline bounds to prevent abrupt audio cuts.
+
+---
 # 🎵 ComfyUI Geeky AudioMixer
 
 <img width="1088" height="538" alt="Screenshot 2025-08-03 200408" src="https://github.com/user-attachments/assets/ddaa88db-fb30-4335-b99c-a10d8350f332" />
